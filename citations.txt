@@ -1,0 +1,126 @@
+User Prompt: google drive api to get files to my local machine and just interact with my drive files 
+--------------------------------------------------------------------------------------------------
+ChatGPT 4o model answer obtained on September 21:
+Got it! If you're looking to interact with Google Drive using a **command-line interface (CLI)** instead of a desktop app, you can still follow a similar process, but with a few modifications to use the command line for authentication. 
+
+Here’s how you can set up and use the **Google Drive API** in a **CLI-based Python application**.
+
+### Step 1: Set up Google Drive API and Obtain Credentials
+1. **Go to the Google Cloud Console**: [Google Cloud Console](https://console.cloud.google.com/).
+2. **Create a New Project**:
+   - Click on "Select Project" and then "New Project."
+   - Give your project a name and create it.
+3. **Enable Google Drive API**:
+   - In the "APIs & Services" dashboard, click "Enable APIs and Services."
+   - Search for "Google Drive API" and enable it.
+4. **Create OAuth 2.0 Credentials**:
+   - Go to "Credentials" from the left sidebar.
+   - Click "Create Credentials" and choose "OAuth 2.0 Client IDs."
+   - Configure the consent screen with the required information.
+   - Under the "Application type," select **Other** (or "Desktop app," but it will still work with CLI).
+   - Download the `client_secret.json` file and save it to your project folder.
+
+### Step 2: Install Required Python Libraries
+Install the necessary libraries using `pip`:
+
+```bash
+pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+```
+
+### Step 3: Authenticate and Set Up CLI for Google Drive Interaction
+
+Use the following Python script to interact with Google Drive from the command line:
+
+1. **Authenticate and Initialize the Google Drive API**:
+
+```python
+import os
+import io
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+
+# Scopes for accessing Google Drive
+SCOPES = ['https://www.googleapis.com/auth/drive']
+
+def authenticate_drive_api():
+    creds = None
+    # Check if token.json already exists, which stores the user's access and refresh tokens
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    # If no valid credentials exist, let the user log in via the command line
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('client_secret.json', SCOPES)
+            creds = flow.run_console()  # Use run_console() for CLI
+        # Save the credentials to token.json for future use
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+    
+    # Build the Google Drive service
+    service = build('drive', 'v3', credentials=creds)
+    return service
+
+service = authenticate_drive_api()
+```
+
+2. **List Files on Google Drive**:
+
+```python
+def list_files(service, page_size=10):
+    # Call the Drive API to list the first 10 files
+    results = service.files().list(
+        pageSize=page_size, fields="nextPageToken, files(id, name)").execute()
+    items = results.get('files', [])
+
+    if not items:
+        print('No files found.')
+    else:
+        print('Files:')
+        for item in items:
+            print(f'{item["name"]} ({item["id"]})')
+
+list_files(service)
+```
+
+3. **Download Files from Google Drive**:
+
+```python
+def download_file(service, file_id, file_name):
+    request = service.files().get_media(fileId=file_id)
+    fh = io.FileIO(file_name, 'wb')
+
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done:
+        status, done = downloader.next_chunk()
+        print(f"Download {int(status.progress() * 100)}% complete.")
+
+# Example: Download a file by specifying its ID and desired local filename
+file_id = 'your_file_id_here'  # Replace with the actual file ID
+file_name = 'your_local_filename_here'  # Specify the name to save the file as
+download_file(service, file_id, file_name)
+```
+
+### Step 4: Running the Script from CLI
+1. **Initial Authentication**:
+   - The first time you run the script, it will prompt you to visit a URL and authenticate your Google account via a browser.
+   - After granting permission, you will get a code which you paste into the terminal, and the authentication will be completed.
+   - The credentials will be saved to `token.json`, so future runs of the script won't require authentication unless the token expires.
+
+2. **Command to Run the Script**:
+   - You can run the script directly in your terminal like this:
+     ```bash
+     python download_files.py
+     ```
+
+### Summary of Workflow:
+- You run the Python script from the terminal.
+- The script uses `InstalledAppFlow().run_console()` to handle authentication via the command line.
+- After authenticating, the script can list files and download them using their file ID.
+
+This approach should meet your needs for a command-line based interaction with Google Drive. Let me know if you need further assistance!
